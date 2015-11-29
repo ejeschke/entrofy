@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import numpy as np
 import pandas as pd
+import time
 
 def obj(p, w, q):
     # Prevent numerical underflow in log
@@ -132,6 +133,16 @@ def entrofy(X, k, w=None, q=None, pre_selects=None, n_samples=15):
     return max_score, best
 
 
+def sanitize_name(value):
+    # Sanitize name for javascript/HTML--this happens for e.g. floats
+    # that get binned
+    value = str(value)
+    value = value.replace('(', 'rng')
+    value = value.replace(', ', '_')
+    value = value.replace('.', '_')
+    value = value.replace(']', '')
+    return value
+
 def binarize(df, n_bins=5):
 
     df2 = pd.DataFrame(index=df.index)
@@ -158,7 +169,7 @@ def binarize(df, n_bins=5):
                 continue
 
             z += 1.0
-            new_name = '{}_{}'.format(column, value)
+            new_name = '{}_{}'.format(column, sanitize_name(value))
             df2[new_name] = new_series
             df2[new_name][pd.isnull(data)] = np.nan
             groupkeys.append(new_name)
@@ -191,13 +202,25 @@ def process_table(data, index, columns, k, q, w, pre_selects):
     # Find the index column
     df = df.set_index(index)
 
+    # q: parameter, w: weight
+
     X = df.values.astype(np.float)
+    # rows: indexes of selected participants
     score, rows = entrofy(X, k, q=np.asarray([float(_) for _ in q]),
                                 w=np.asarray([float(_) for _ in w]),
                                 pre_selects=pre_selects)
 
     p_all = compute_p(X)
     p_selected = compute_p(X[rows])
+
+    # write special output file with results
+    with open("results.txt", 'w') as out_f:
+        out_f.write("\n\n# ------------------------------\n")
+        out_f.write("time: %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        out_f.write("score: %f\n" % (score))
+        out_f.write("rows: %s\n" % (repr(list(rows))))
+        out_f.write("p_all: %s\n" % str(list(p_all)))
+        out_f.write("p_selected: %s\n" % str(list(p_selected)))
 
     return score, rows, p_all, p_selected
 
